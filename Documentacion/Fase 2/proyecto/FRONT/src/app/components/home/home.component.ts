@@ -37,6 +37,7 @@ export class HomeComponent {
   selectedProjectTasks: any[] = [];
   isProjectModalOpen = false;
   isTaskModalOpen = false;
+  isMetricsModalOpen= false;
   isAssignTaskModalOpen = false;
   isTaskModalUpdateOpen = false;
   showTaskForm: boolean = false;
@@ -115,11 +116,11 @@ export class HomeComponent {
       });
     } else {
       alert('No ha iniciado sesión')
-      console.log('No hay un usuario autenticado');
+      //console.log('No hay un usuario autenticado');
     }
     
     this.proyectrefreshInterval = setInterval(() => {
-      console.log('estan cargando')
+      //console.log('estan cargando')
       this.userService.getUserData().subscribe(data => {
         this.userData = data;
         this.ordenarProyectosPorPrioridad()
@@ -147,7 +148,7 @@ export class HomeComponent {
   }
 
   openProjectModal(): void {
-    console.log('abri')
+    // console.log('abri')
     this.isProjectModalOpen = true;
   }
 
@@ -163,6 +164,12 @@ export class HomeComponent {
     this.isTaskModalOpen = false;
   }
 
+  openMetricModal(){
+    this.isMetricsModalOpen = true
+  }
+  closeMetricModal(){
+    this.isMetricsModalOpen = false
+  }
   openAssignTaskModal(): void {
     this.isAssignTaskModalOpen = true;
   }
@@ -184,7 +191,7 @@ export class HomeComponent {
     return (cargaTrabajo / 10) * 100;
   }
   openImageModal(): void {
-    //console.log('Modal abierto');
+    console.log(this.userData);
     this.showImageModal = true;
   }
   
@@ -225,7 +232,7 @@ selectProject(proyecto: any): void {
   if (token) {
     this.proyectService.getProjectMetrics(proyecto.id, token).subscribe(metrics => {
       this.selectedProject.metrics = metrics; // Guardar métricas en el proyecto seleccionado
-      console.log(metrics)
+      //console.log(metrics)
     });
   }
 }
@@ -262,11 +269,12 @@ createTask(): void {
     carga: this.taskForm.value.carga,  // El valor numérico 5, 3 o 1
     proyecto: this.selectedProject.id,
     fechaInicio: this.taskForm.value.fechaIncio,
-    fechaMax: this.taskForm.value.fechaMax
+    fechamax: this.taskForm.value.fechaMax
   };
   
-  if (token && this.taskForm.value.fechaIncio != null && this.taskForm.value.fechaMax) {
+  if (token && this.taskForm.value.fechaIncio != null && this.taskForm.value.fechaMax !=null) {
     this.taskService.createTask(taskData, token).subscribe((response: any) => {
+      
       // Añadir la nueva tarea al array local de tareas
       const nuevaTarea = {
         id: response.id,
@@ -279,7 +287,7 @@ createTask(): void {
       
       // Actualizar la lista de tareas del proyecto seleccionado
       this.selectedProjectTasks.push(nuevaTarea);
-
+      this.taskForm.reset();
       this.closeTaskModal();
       alert('Se ha creado la tarea con éxito');
     });
@@ -433,6 +441,7 @@ assignTask(): void {
       this.proyectService.actualizarPrioridad(proyecto.id, Number(proyecto.prioridad) ,token).subscribe(
         () => {
           alert('se ha cambiado la prioridad')
+          console.log(this.selectedProject.members)
           this.ordenarProyectosPorPrioridad()
         },
         error => {
@@ -463,23 +472,28 @@ assignTask(): void {
       fechaInicio: this.taskUpdateForm.value.fechaInicio,  // Corrección de nombre
       fechaMax: this.taskUpdateForm.value.fechaMax         // Corrección de nombre
     };
-  
-    this.taskService.updateTask(tarea, token).subscribe(
-      (response) => {
-        alert('Tarea actualizada con éxito');
-        console.log(tarea)
-        const index = this.selectedProjectTasks.findIndex(t => t.id === tarea.id);
-        if (index !== -1) {
-          this.selectedProjectTasks[index] = tarea; // Actualizar la tarea en la lista
+    if (!tarea.titulo || !tarea.descripcion || !tarea.carga || !tarea.fechaInicio || !tarea.fechaMax || !tarea.proyecto){
+      this.taskService.updateTask(tarea, token).subscribe(
+        (response) => {
+          alert('Tarea actualizada con éxito');
+          console.log(tarea)
+          const index = this.selectedProjectTasks.findIndex(t => t.id === tarea.id);
+          if (index !== -1) {
+            this.selectedProjectTasks[index] = tarea; // Actualizar la tarea en la lista
+          }
+          this.closeTaskEditModal()
+        },
+        (error) => {
+          console.error('Error al actualizar la tarea:', error);
+          console.log(tarea)
+          alert('Hubo un error al actualizar la tarea');
         }
-        this.closeTaskEditModal()
-      },
-      (error) => {
-        console.error('Error al actualizar la tarea:', error);
-        console.log(tarea)
-        alert('Hubo un error al actualizar la tarea');
-      }
-    );
+      );
+    }else{
+      alert('No se encontró la tarea a actualizar')
+    }
+
+
   }
   updateProfile(): void {
     const formData = new FormData();
@@ -503,7 +517,7 @@ assignTask(): void {
             this.pimg = img
             this.pimgd = BACKEND_URL+'/media/profile_images/defecto.jpg'
             this.userData.profile.image = img
-            console.log('algo')
+            
           })
           // Aquí puedes actualizar `profileData` o mostrar un mensaje de éxito
         },
@@ -523,49 +537,110 @@ assignTask(): void {
     return `conic-gradient(#4caf50 0% ${progress}%, #e0e0e0 ${progress}% 100%)`;
   }
 
-  exportToExcel() {
-    const metrics = this.selectedProject.metrics;
+  // exportToExcel() {
+  //   const metrics = this.selectedProject.metrics;
   
-    // Datos a exportar
-    const data = [
-      { Métrica: 'Total de Tareas', Valor: metrics.total_tasks },
-      { Métrica: 'Tareas Completadas', Valor: metrics.completed_tasks },
-      { Métrica: 'Tareas en Progreso', Valor: metrics.inprogress_tasks },
-      { Métrica: 'Progreso (%)', Valor: metrics.progress },
-    ];
+  //   // Datos generales del proyecto
+  //   const data = [
+  //     { Métrica: 'Total de Tareas', Valor: metrics.total_tasks },
+  //     { Métrica: 'Tareas Completadas', Valor: metrics.completed_tasks },
+  //     { Métrica: 'Tareas en Progreso', Valor: metrics.inprogress_tasks },
+  //     { Métrica: 'Progreso (%)', Valor: metrics.progress },
+  //   ];
   
-    // Crear hoja de Excel
-    const worksheet = XLSX.utils.json_to_sheet(data);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Métricas');
+  //   // Agregar métricas por miembro
+  //   this.selectedProject.members.forEach((member: any) => {
+  //     data.push({
+  //       Métrica: `Carga de ${member.username}`,
+  //       Valor: member.profile.cargaTrabajo > 0 ? member.profile.cargaTrabajo : 'No especificada',
+  //     });
+  //   });
   
-    // Exportar archivo
-    XLSX.writeFile(workbook, `metricas_proyecto_${this.selectedProject.title}.xlsx`);
-  }
+  //   // Crear hoja de Excel
+  //   const worksheet = XLSX.utils.json_to_sheet(data);
+  //   const workbook = XLSX.utils.book_new();
+  //   XLSX.utils.book_append_sheet(workbook, worksheet, 'Métricas');
+  
+  //   // Exportar archivo
+  //   XLSX.writeFile(workbook, `metricas_proyecto_${this.selectedProject.title}.xlsx`);
+  // }
+  
   
   exportToPDF() {
     const doc = new jsPDF();
     const metrics = this.selectedProject.metrics;
   
+    // Obtener la fecha actual
+    const currentDate = new Date();
+    const formattedDate = `${currentDate.getDate()}/${currentDate.getMonth() + 1}/${currentDate.getFullYear()}`; // Formato: DD/MM/YYYY
+  
     // Título
     doc.text('Métricas del Proyecto', 14, 20);
   
-    // Datos para la tabla
+    // Agregar la fecha
+    doc.text(`Fecha: ${formattedDate}`, 14, 30);
+  
+    // Datos generales
     const tableData = [
       ['Total de Tareas', metrics.total_tasks],
-      ['Tareas en Progreso', metrics.inprogress_tasks],
-      ['Tareas Completadas', metrics.completed_tasks],
       ['Progreso (%)', `${metrics.progress}%`],
     ];
+  
+    // Agregar los nombres de las tareas en progreso, completadas, no asignadas y atrasadas
+    const inProgressTasks = metrics.inprogress_task_names.length > 0 ? metrics.inprogress_task_names.join(', ') : 'Ninguna';
+    const completedTasks = metrics.completed_task_names.length > 0 ? metrics.completed_task_names.join(', ') : 'Ninguna';
+    const noAssignedTasks = metrics.no_assigned_task_names.length > 0 ? metrics.no_assigned_task_names.join(', ') : 'Ninguna';
+    const atrasadas = metrics.overdue_task_names.length > 0 ? metrics.overdue_task_names.join(', ') : 'Ninguna';
+  
+    tableData.push(
+      ['Tareas en Progreso', inProgressTasks],
+      ['Tareas Completadas', completedTasks],
+      ['Tareas Sin Asignar', noAssignedTasks],
+      ['Tareas Atrasadas', atrasadas],
+    );
+  
+    // Agregar detalles de las asignaciones de tareas
+    if (metrics.assigned_task_details.length > 0) {
+      metrics.assigned_task_details.forEach((task: any) => {
+        tableData.push([
+          `Tarea: ${task.tarea}`,
+          `Asignada a: ${task.usuario || 'No asignada'}`,
+        ]);
+      });
+    } else {
+      tableData.push(['Tareas Asignadas', 'No hay tareas asignadas']);
+    }
+  ;
+
   
     // Agregar tabla con autoTable
     (doc as any).autoTable({
       head: [['Métrica', 'Valor']],
       body: tableData,
-      startY: 30, // Posición inicial en Y
+      startY: 40, // Ajustar para que no se sobreponga con la fecha
     });
   
     // Guardar el PDF
     doc.save(`metricas_proyecto_${this.selectedProject.title}.pdf`);
   }
+  
+  
+  
+  
+
+
+
+  getPrioridadTexto(prioridad: number): string {
+    switch (prioridad) {
+      case 1:
+        return 'Baja';
+      case 3:
+        return 'Media';
+      case 5:
+        return 'Alta';
+      default:
+        return 'Desconocida'; // Opcional: manejar casos fuera de rango
+    }
+  }
+  
 }

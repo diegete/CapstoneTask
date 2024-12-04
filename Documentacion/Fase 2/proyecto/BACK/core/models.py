@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 from pydantic import ValidationError
+from datetime import date 
 import uuid
 class Profile(models.Model):
     USER_TYPES = (
@@ -42,22 +43,55 @@ class Proyecto(models.Model):
     def __str__(self):
         return self.title
     def get_metrics(self):
-        # Obtiene el total de tareas y las tareas finalizadas
+
+
+    # Obtiene el total de tareas y las tareas categorizadas
         total_tasks = self.tareas.count()
         inprogres_taks = self.tareas.filter(avance='Cursando').count()
         completed_tasks = self.tareas.filter(avance='finalizada').count()
+        no_assigned_tasks = self.tareas.filter(asignada=False).count()  # Tareas no asignadas
 
+        # Calcula las tareas atrasadas
+        overdue_tasks = self.tareas.filter(fechamax__lt=date.today(), avance__in=['iniciada', 'cursando'])
+        overdue_task_names = list(overdue_tasks.values_list('titulo', flat=True))
+        overdue_task_count = overdue_tasks.count()
+
+        # Obtiene los nombres de las tareas en progreso, completadas y no asignadas
+        inprogress_task_names = list(self.tareas.filter(avance='Cursando').values_list('titulo', flat=True))
+        completed_task_names = list(self.tareas.filter(avance='finalizada').values_list('titulo', flat=True))
+        no_assigned_task_names = list(self.tareas.filter(asignada=False).values_list('titulo', flat=True))
+
+        # Información sobre las asignaciones de tareas
+        assigned_tasks = self.tareas.filter(asignada=True)
+        assigned_task_details = [
+            {
+                'tarea': task.titulo,
+                'usuario': AsignacionTarea.objects.filter(tarea=task).values_list('usuario__username', flat=True).first() or 'No asignada'
+            }
+            for task in assigned_tasks
+        ]
 
         # Calcula el progreso en porcentaje
         progress = (completed_tasks / total_tasks) * 100 if total_tasks > 0 else 0
 
         # Devuelve las métricas como un diccionario
         return {
+            'no_assigned_tasks': no_assigned_tasks,
+            'no_assigned_task_names': no_assigned_task_names,
             'total_tasks': total_tasks,
             'inprogres_taks': inprogres_taks,
             'completed_tasks': completed_tasks,
-            'progress': round(progress, 2)  # Limita el progreso a dos decimales
+            'progress': round(progress, 2),  # Limita el progreso a dos decimales
+            'inprogress_task_names': inprogress_task_names,
+            'completed_task_names': completed_task_names,
+            'overdue_tasks': overdue_task_count,
+            'overdue_task_names': overdue_task_names,  # Nombres de las tareas atrasadas
+            'assigned_task_details': assigned_task_details,  # Información sobre las asignaciones
         }
+
+
+
+
 
     
 
@@ -72,10 +106,10 @@ class Tarea(models.Model):
     descripcion = models.TextField()
     carga = models.IntegerField()  # Peso de la tarea de 1 a 10
     proyecto = models.ForeignKey(Proyecto, related_name='tareas', on_delete=models.CASCADE)
-    asignada = models.BooleanField(null=True)
+    asignada = models.BooleanField(null=True, default=False)
     fechaInicio = models.DateField(null=True)
     fechamax = models.DateField(null=True)
-    avance = models.CharField(max_length=15, choices=AVANCE_TYPE, null= True)
+    avance = models.CharField(max_length=15, choices=AVANCE_TYPE, null= True, default='iniciada')
     estado = models.BooleanField(default=False, null=True)
 
 
@@ -125,10 +159,15 @@ class Message(models.Model):
         return f"{self.user.username}: {self.content[:20]}..."
     
 class Notification(models.Model):
+    NOTIFICATION_TYPES = [
+        ('new_task', 'Nueva Tarea'),
+        ('overdue_task', 'Tarea Vencida'),
+    ]
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
     message = models.TextField()
-    created_at = models.DateTimeField(auto_now_add=True)
+    type = models.CharField(max_length=20,choices=NOTIFICATION_TYPES ,default='')
     read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Notification for {self.user.username}: {self.message}"
+        return f"{self.user.username}: {self.message}"
